@@ -21,3 +21,7 @@ features = ["spin_no_std"]
 [profile.dev]
 
 [profile.release]
+
+[[test]]
+name = "should_panic"
+harness = false
