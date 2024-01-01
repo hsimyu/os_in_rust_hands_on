@@ -16,7 +16,7 @@ pub extern "C" fn _start() -> ! {
     #[cfg(test)]
     test_main();
 
-    loop {}
+    blog_os::hlt_loop();
 }
 
 // 非テスト環境用のパニックハンドラ
@@ -24,7 +24,7 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    loop {}
+    blog_os::hlt_loop();
 }
 
 // テスト環境用のパニックハンドラ
