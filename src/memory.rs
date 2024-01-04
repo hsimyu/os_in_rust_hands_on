@@ -1,3 +1,4 @@
+use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::{
     FrameAllocator, Mapper, OffsetPageTable, Page, PhysFrame, Size4KiB,
@@ -53,5 +54,51 @@ pub struct EmptyFrameAlocator;
 unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAlocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
         None
+    }
+}
+
+pub struct BootInfoFrameAllocator {
+    memory_map: &'static MemoryMap,
+    next: usize,
+}
+
+impl BootInfoFrameAllocator {
+    /// 渡されたメモリマップからフレームアロケータを作る
+    ///
+    /// 呼び出し元は渡されたメモリマップが有効であることを保証しなければならない。
+    /// 特に `USABLE` なフレームは実際に未使用でなくてはならない
+    pub unsafe fn init(memory_map: &'static MemoryMap) -> Self {
+        BootInfoFrameAllocator {
+            memory_map,
+            next: 0,
+        }
+    }
+
+    /// メモリマップによって指定された usable な物理フレームのイテレータを返す
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
+        // メモリマップから usable な領域を得る
+        let regions = self.memory_map.iter();
+        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
+
+        // それぞれの領域をアドレス範囲に map で変換
+        let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
+
+        // フレームの開始アドレスのイテレータへと変換
+        // アドレス範囲を 4KiB ごとに区切った領域をフラットに結合する
+        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
+
+        // 開始アドレスから `PhysFrame` 型を作る
+        frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+    }
+}
+
+unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
+        // usable なフレームを順番に消費する
+        // NOTE: フレーム割り当てごとにイテレータを作り直しているので非効率的
+        // named existential type を使えばいける？
+        let frame = self.usable_frames().nth(self.next);
+        self.next += 1;
+        frame
     }
 }
