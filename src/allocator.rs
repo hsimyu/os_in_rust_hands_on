@@ -3,6 +3,7 @@ use core::{
     ptr::null_mut,
 };
 
+use linked_list_allocator::LockedHeap;
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
@@ -13,20 +14,8 @@ use x86_64::{
 pub const HEAP_START: usize = 0x_4444_4444_0000; // 適当な仮想アドレス
 pub const HEAP_SIZE: usize = 100 * 1024;
 
-pub struct Dummy;
-
 #[global_allocator]
-static ALLOCATOR: Dummy = Dummy;
-
-unsafe impl GlobalAlloc for Dummy {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        null_mut()
-    }
-
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        panic!("dealloc should be never called")
-    }
-}
+static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -51,6 +40,11 @@ pub fn init_heap(
 
         // NOTE: flush() することで TLB を明示的に更新する
         unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
+    }
+
+    // アロケータを指定した仮想アドレス範囲で初期化する
+    unsafe {
+        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
 
     Ok(())
