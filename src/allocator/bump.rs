@@ -3,7 +3,7 @@ use core::{
     ptr,
 };
 
-use x86_64::align_up;
+use super::align_up;
 
 pub struct BumpAllocator {
     heap_start: usize,
@@ -54,8 +54,8 @@ unsafe impl GlobalAlloc for Locked<BumpAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut bump = self.lock();
 
-        let alloc_start = align_up(bump.next as u64, layout.align() as u64);
-        let alloc_end = match alloc_start.checked_add(layout.size() as u64) {
+        let alloc_start = align_up(bump.next, layout.align());
+        let alloc_end = match alloc_start.checked_add(layout.size()) {
             Some(end) => end,
             None => return ptr::null_mut(),
         };

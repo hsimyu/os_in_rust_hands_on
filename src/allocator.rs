@@ -1,6 +1,5 @@
 pub mod bump;
 
-use linked_list_allocator::LockedHeap;
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
@@ -8,11 +7,23 @@ use x86_64::{
     VirtAddr,
 };
 
+use self::bump::{BumpAllocator, Locked};
+
 pub const HEAP_START: usize = 0x_4444_4444_0000; // 適当な仮想アドレス
 pub const HEAP_SIZE: usize = 100 * 1024;
 
+fn align_up(addr: usize, align: usize) -> usize {
+    // align - 1 は align を満たす bit よりも下位がすべて 1 である数値
+    // つまり、!(align - 1) は align を満たす bit より上位がすべて 1 である数値
+    //
+    // addr & !(align - 1) で、addr 以下で最も近いアラインメントを満たす下向きのアラインができる
+    // 予め対象を (addr + (align - 1)) と加算しておくことで、1アラインメント分ズラした上で計算する
+    // -> 上向きのアラインを得る
+    (addr + align - 1) & !(align - 1)
+}
+
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
