@@ -1,4 +1,9 @@
-use core::alloc::{GlobalAlloc, Layout};
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    ptr,
+};
+
+use x86_64::align_up;
 
 pub struct BumpAllocator {
     heap_start: usize,
@@ -47,16 +52,29 @@ impl<A> Locked<A> {
 
 unsafe impl GlobalAlloc for Locked<BumpAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // TODO: アラインメントと境界をチェックする
         let mut bump = self.lock();
 
-        let alloc_start = bump.next;
-        bump.next = alloc_start + layout.size();
-        bump.allocations += 1;
-        alloc_start as *mut u8
+        let alloc_start = align_up(bump.next as u64, layout.align() as u64);
+        let alloc_end = match alloc_start.checked_add(layout.size() as u64) {
+            Some(end) => end,
+            None => return ptr::null_mut(),
+        };
+
+        if alloc_end as usize > bump.heap_end {
+            ptr::null_mut() // メモリ不足
+        } else {
+            bump.next = alloc_end as usize;
+            bump.allocations += 1;
+            alloc_start as *mut u8
+        }
     }
 
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        todo!();
+        let mut bump = self.lock();
+
+        bump.allocations -= 1;
+        if bump.allocations == 0 {
+            bump.next = bump.heap_start;
+        }
     }
 }
