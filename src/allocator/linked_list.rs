@@ -1,6 +1,11 @@
-use core::mem;
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    mem, ptr,
+};
 
 use crate::allocator::align_up;
+
+use super::Locked;
 
 struct ListNode {
     size: usize,
@@ -90,5 +95,45 @@ impl LinkedListAllocator {
         }
 
         Ok(alloc_start)
+    }
+
+    fn size_align(layout: Layout) -> (usize, usize) {
+        // 与えられたレイアウトを調整し、割り当てメモリ領域に ListNode を格納できるようにする。
+        // 調整後のサイズとアラインメントを返す。
+        let layout = layout
+            // アラインメントが小さすぎたら拡張
+            .align_to(mem::align_of::<ListNode>())
+            .expect("adjusting alignment failed")
+            // サイズをアラインメントの倍数にする
+            .pad_to_align();
+
+        // サイズが ListNode 以下であれば ListNode のサイズになるようにする
+        let size = layout.size().max(mem::size_of::<ListNode>());
+        (size, layout.align())
+    }
+}
+
+unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let (size, align) = LinkedListAllocator::size_align(layout);
+        let mut allocator = self.lock();
+
+        if let Some((region, alloc_start)) = allocator.find_region(size, align) {
+            let alloc_end = alloc_start.checked_add(size).expect("overflow");
+            let excess_size = region.end_addr() - alloc_end;
+            if excess_size > 0 {
+                // 残領域をフリーリストに登録し直す
+                allocator.add_free_region(alloc_end, excess_size);
+            }
+
+            alloc_start as *mut u8
+        } else {
+            ptr::null_mut()
+        }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        let (size, _) = LinkedListAllocator::size_align(layout);
+        self.lock().add_free_region(ptr as usize, size)
     }
 }

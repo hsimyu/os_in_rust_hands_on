@@ -8,7 +8,24 @@ use x86_64::{
     VirtAddr,
 };
 
-use self::bump::{BumpAllocator, Locked};
+use self::{bump::BumpAllocator, linked_list::LinkedListAllocator};
+
+// Trait 実装用のラッパー
+pub struct Locked<A> {
+    inner: spin::Mutex<A>,
+}
+
+impl<A> Locked<A> {
+    pub const fn new(inner: A) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> spin::MutexGuard<A> {
+        self.inner.lock()
+    }
+}
 
 pub const HEAP_START: usize = 0x_4444_4444_0000; // 適当な仮想アドレス
 pub const HEAP_SIZE: usize = 100 * 1024;
@@ -24,7 +41,7 @@ fn align_up(addr: usize, align: usize) -> usize {
 }
 
 #[global_allocator]
-static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
