@@ -30,6 +30,7 @@ pub struct LinkedListAllocator {
     head: ListNode,
 }
 
+// TODO: ブロック結合機能を実装しないとまともに使えない
 impl LinkedListAllocator {
     /// 空のアロケータを新規作成
     pub const fn new() -> Self {

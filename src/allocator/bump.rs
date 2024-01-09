@@ -3,7 +3,7 @@ use core::{
     ptr,
 };
 
-use super::align_up;
+use super::{align_up, Locked};
 
 pub struct BumpAllocator {
     heap_start: usize,
@@ -30,23 +30,6 @@ impl BumpAllocator {
         self.heap_start = heap_start;
         self.heap_end = heap_start + heap_size;
         self.next = heap_start;
-    }
-}
-
-// Trait 実装用のラッパー
-pub struct Locked<A> {
-    inner: spin::Mutex<A>,
-}
-
-impl<A> Locked<A> {
-    pub const fn new(inner: A) -> Self {
-        Locked {
-            inner: spin::Mutex::new(inner),
-        }
-    }
-
-    pub fn lock(&self) -> spin::MutexGuard<A> {
-        self.inner.lock()
     }
 }
 

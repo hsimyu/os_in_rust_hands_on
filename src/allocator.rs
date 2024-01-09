@@ -1,4 +1,5 @@
 pub mod bump;
+pub mod fixed_size_block;
 pub mod linked_list;
 
 use x86_64::{
@@ -8,7 +9,7 @@ use x86_64::{
     VirtAddr,
 };
 
-use self::{bump::BumpAllocator, linked_list::LinkedListAllocator};
+use self::fixed_size_block::FixedSizeBlockAllocator;
 
 // Trait 実装用のラッパー
 pub struct Locked<A> {
@@ -41,7 +42,7 @@ fn align_up(addr: usize, align: usize) -> usize {
 }
 
 #[global_allocator]
-static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
