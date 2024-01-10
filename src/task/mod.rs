@@ -6,6 +6,8 @@ use core::{
 
 use alloc::boxed::Box;
 
+pub mod simple_executor;
+
 pub struct Task {
     future: Pin<Box<dyn Future<Output = ()>>>,
 }
