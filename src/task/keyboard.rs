@@ -21,6 +21,7 @@ pub(crate) fn add_scancode(scancode: u8) {
         if let Err(_) = queue.push(scancode) {
             println!("WARNING: scancode queue full; dropping keyboard input");
         } else {
+            // キーボード処理タスクを起こす
             WAKER.wake();
         }
     } else {
